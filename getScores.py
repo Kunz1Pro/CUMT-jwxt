@@ -3,13 +3,17 @@
 import requests
 import time
 import yaml
-from SlowLogin import cookie
 
-COOKIE = cookie()
+
 with open('./config.yml') as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
-# COOKIE = 'JSESSIONID=2693736A09D4D5AE189A2EF31621CA73; X-LB=2.5.6.6b11cc81.0'
-# print(COOKIE)
+
+if config['opinions'][1]['login'] == 'slow':
+    from SlowLogin import cookie
+else:
+    from FastLogin import cookie
+
+COOKIE = cookie()
 page_id = 'N305005'
 stu_id = config['user'][0]['id']
 XNM = '2020'
@@ -45,36 +49,40 @@ def get_detail_scores(_xnm, _xqm, _jxb_id):
     return _detail_scores
 
 
-data = {
-    'xnm': XNM,
-    'xqm': XQM,
-    '_search': 'false',
-    'nd': TIME,
-    'queryModel.showCount': 100,
-    'queryModel.currentPage': '1',
-    'queryModel.sortName': 'jd',
-    'queryModel.sortOrder': 'asc',
-    'time': 0
-}
-try:
-    results = requests.post(url=URL, headers=headers, data=data)
-except:
-    print('成绩返回错误')
+def getsc():
+    data = {
+        'xnm': XNM,
+        'xqm': XQM,
+        '_search': 'false',
+        'nd': TIME,
+        'queryModel.showCount': 100,
+        'queryModel.currentPage': '1',
+        'queryModel.sortName': 'jd',
+        'queryModel.sortOrder': 'desc',
+        'time': 0
+    }
+    try:
+        results = requests.post(url=URL, headers=headers, data=data)
+    except:
+        print('成绩返回错误')
 
-results = results.json()
-scores = results['items']
-cnt = results['totalCount']
-print("成绩总数: {}".format(cnt))
-if cnt != 0:
-    print('===============正在爬取，请稍后！=================')
-for i in scores:
-    jxb_id = i['jxb_id']
-    xqm = i['xqm']
-    xnm = i['xnm']
-    detail_scores = get_detail_scores(xnm, xqm, jxb_id)
-    detail_scores.append(i['xf'])
-    detail_scores.append(i['jd'])
-    sc[i['kcmc']] = detail_scores
+    results = results.json()
+    scores = results['items']
+    cnt = results['totalCount']
+    print("成绩总数: {}".format(cnt))
+    if cnt != 0:
+        print('===============正在爬取，请稍后！:)=================')
+    for i in scores:
+        jxb_id = i['jxb_id']
+        xqm = i['xqm']
+        xnm = i['xnm']
+        detail_scores = get_detail_scores(xnm, xqm, jxb_id)
+        detail_scores.append(i['xf'])
+        detail_scores.append(i['jd'])
+        sc[i['kcmc']] = detail_scores
+    return sc
+
 
 if __name__ == '__main__':
-    print(sc)
+    print(getsc())
+    print('================================================')

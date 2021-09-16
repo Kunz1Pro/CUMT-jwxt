@@ -30,6 +30,5 @@ def cookie():
     print(cookies)
     driver.quit()
     cookies = cookies[1]['name']+'='+cookies[1]['value']  # +'; X-LB='+cookie[0]['value']
-    #print(cookies)
     return cookies
 

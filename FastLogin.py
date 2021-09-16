@@ -1,10 +1,14 @@
 # -*- coding: UTF-8 -*-
+import os
 
 import requests
+import psutil
 import base64
 import yaml
 import jsFunction
 from bs4 import BeautifulSoup
+from PIL import Image
+from OcrApi import generator
 import time
 
 with open('./config.yml') as f:
@@ -17,11 +21,7 @@ TIME = int(round(time.time() * 1000))
 URL = f'http://jwxt.cumt.edu.cn/jwglxt/xtgl/login_slogin.html?time={TIME}'
 
 
-def cookie():
-    return 0;
-
-
-def password_encode(pwd,sessions):
+def password_encode(pwd, sessions):
     url = f'http://jwxt.cumt.edu.cn/jwglxt/xtgl/login_getPublicKey.html?time={TIME}&_={TIME-50}'
     ret = sessions.get(url)
     ret = ret.json()
@@ -46,18 +46,45 @@ def get_csrftoken(sessions):
     return token
 
 
+def get_code_by_people(sessions):
+    header_code = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0'
+    }
+    url = f'http://jwxt.cumt.edu.cn/jwglxt/kaptcha?time={TIME}'
+    request = sessions.get(url, headers=header_code)
+    path = './image/code.jpg'
+    with open(path, 'wb')as code_img:
+        code_img.write(request.content)
+    code_img = Image.open(path)
+    process_list = []
+    for proc in psutil.process_iter():
+        process_list.append(proc)
+    code_img.show()
+    code = input("请输入验证码:\n")
+    for proc in psutil.process_iter():
+        if not proc in process_list:
+            proc.kill()
+    os.remove(path)
+    return code
+
+
+def get_code_by_ocr(sessions):
+    header_code = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0'
+    }
+    url = f'http://jwxt.cumt.edu.cn/jwglxt/kaptcha?time={TIME}'
+    request = sessions.get(url, headers=header_code)
+    path = './image/yzm.png'
+    with open(path, 'wb')as code_img:
+        code_img.write(request.content)
+    code = generator()
+    return code
+
+
 def login():
     sessions = requests.Session()
     token = get_csrftoken(sessions)
     pwd_enc = password_encode(stu_password, sessions)
-    data = {
-        'csrftoken': token,
-        'language':  'zh_CN',
-        'yhm': stu_id,
-        'mm': pwd_enc,
-        'mm': pwd_enc,
-        'yzm': ''
-    }
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Encoding': 'gzip, deflate',
@@ -71,8 +98,37 @@ def login():
         'Upgrade-Insecure-Requests': '1',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0',
     }
-    ret = sessions.post(url=URL,headers=headers,data=data)
-    print(ret.text)
+    # 智能人工识别验证码
+    if config['opinions'][0]['AI']:
+        code = get_code_by_ocr(sessions)
+    else:
+        code = get_code_by_people(sessions)
+    # 人工智能识别验证码
+    data = {
+        'csrftoken': token,
+        'language':  'zh_CN',
+        'yhm': stu_id,
+        'mm': pwd_enc,
+        'mm': pwd_enc,
+        'yzm': code
+    }
+    ret = sessions.post(url=URL, headers=headers, data=data)
+    cookies = sessions.cookies.get_dict()
+    return ret, cookies
+
+
+def cookie():
+    rt = login()
+    while rt[0].text.find('验证码输入错误') != -1:
+        print('验证码输入错误:)')
+        rt = login()
+    cookies = 'JSESSIONID='+rt[1]['JSESSIONID']+'; X-LB='+rt[1]['X-LB']
+    return cookies
+
 
 if __name__ == '__main__':
-   login()
+    test = login()
+    print(test[1])
+    while test[0].text.find('验证码输入错误') != -1:
+        print('验证码输入错误:)')
+        test = login()
